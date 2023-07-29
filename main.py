@@ -27,6 +27,8 @@ async def main():
                         default=config.PLATFORM)
     parser.add_argument('--lt', type=str, help='Login type (qrcode | phone | cookie)',
                         choices=["qrcode", "phone", "cookie"], default=config.LOGIN_TYPE)
+    parser.add_argument('--mode', type=str, help='Crawler mode (keyword | noteid)',
+                        choices=["keyword", "noteid"], default="keyword")
 
     # init account pool
     account_pool = proxy_account_pool.create_account_pool()
@@ -42,7 +44,7 @@ async def main():
         login_type=args.lt,
         account_pool=account_pool
     )
-    await crawler.start()
+    await crawler.start(mode=args.mode)
 
 
 if __name__ == '__main__':

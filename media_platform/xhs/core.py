@@ -35,7 +35,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         self.login_type = login_type
         self.account_pool = account_pool
 
-    async def start(self) -> None:
+    async def start(self, mode: str) -> None:
         account_phone, playwright_proxy, httpx_proxy = self.create_proxy_info()
         async with async_playwright() as playwright:
             # Launch a browser context.
@@ -72,9 +72,23 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 await self.xhs_client.update_cookies(browser_context=self.browser_context)
 
             # Search for notes and retrieve their comment information.
-            await self.search()
+            if mode == "keyword":
+                await self.search()
+            elif mode == "noteid":
+                await self.search_note()
+            else:
+                raise ValueError(f"unknown mode: {mode}")
 
             utils.logger.info("Xhs Crawler finished ...")
+
+    async def search_note(self):
+        """Search for note and comments with a list of note ids"""
+        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+        for noteid in config.NOTEIDS.split(","):
+            note_detail = await self.get_note_detail(noteid, semaphore)
+            if note_detail is not None:
+                await xhs_model.update_xhs_note(note_detail)
+                await self.batch_get_note_comments([noteid])
 
     async def search(self) -> None:
         """Search for notes and retrieve their comment information."""
