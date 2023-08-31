@@ -1,11 +1,14 @@
-import json
+import csv
+import pathlib
 from typing import Dict, List
 
 from tortoise import fields
+from tortoise.contrib.pydantic import pydantic_model_creator
 from tortoise.models import Model
 
 import config
 from tools import utils
+from var import request_keyword_var
 
 
 class DouyinBaseModel(Model):
@@ -87,9 +90,25 @@ async def update_douyin_aweme(aweme_item: Dict):
     if config.IS_SAVED_DATABASED:
         if not await DouyinAweme.filter(aweme_id=aweme_id).exists():
             local_db_item["add_ts"] = utils.get_current_timestamp()
-            await DouyinAweme.create(**local_db_item)
+            douyin_aweme_pydantic = pydantic_model_creator(DouyinAweme, name='DouyinAwemeCreate', exclude=('id',))
+            douyin_data = douyin_aweme_pydantic(**local_db_item)
+            douyin_aweme_pydantic.validate(douyin_data)
+            await DouyinAweme.create(**douyin_data.dict())
         else:
-            await DouyinAweme.filter(aweme_id=aweme_id).update(**local_db_item)
+            douyin_aweme_pydantic = pydantic_model_creator(DouyinAweme, name='DouyinAwemeUpdate',
+                                                           exclude=('id', 'add_ts'))
+            douyin_data = douyin_aweme_pydantic(**local_db_item)
+            douyin_aweme_pydantic.validate(douyin_data)
+            await DouyinAweme.filter(aweme_id=aweme_id).update(**douyin_data.dict())
+    else:
+        # Below is a simple way to save it in CSV format.
+        source_keywords = request_keyword_var.get()
+        pathlib.Path(f"data/dy").mkdir(parents=True, exist_ok=True)
+        with open(f"data/dy/aweme_{source_keywords}.csv", mode='a+', encoding="utf-8-sig", newline="") as f:
+            writer = csv.writer(f)
+            if f.tell() == 0:
+                writer.writerow(local_db_item.keys())
+            writer.writerow(local_db_item.values())
 
 
 async def batch_update_dy_aweme_comments(aweme_id: str, comments: List[Dict]):
@@ -114,7 +133,6 @@ async def update_dy_aweme_comment(aweme_id: str, comment_item: Dict):
         "ip_location": comment_item.get("ip_label", ""),
         "aweme_id": aweme_id,
         "content": comment_item.get("text"),
-        "content_extra": json.dumps(comment_item.get("text_extra", [])),
         "user_id": user_info.get("uid"),
         "sec_uid": user_info.get("sec_uid"),
         "short_user_id": user_info.get("short_id"),
@@ -129,6 +147,22 @@ async def update_dy_aweme_comment(aweme_id: str, comment_item: Dict):
     if config.IS_SAVED_DATABASED:
         if not await DouyinAwemeComment.filter(comment_id=comment_id).exists():
             local_db_item["add_ts"] = utils.get_current_timestamp()
-            await DouyinAwemeComment.create(**local_db_item)
+            comment_pydantic = pydantic_model_creator(DouyinAwemeComment, name='DouyinAwemeCommentCreate',
+                                                      exclude=('id',))
+            comment_data = comment_pydantic(**local_db_item)
+            comment_pydantic.validate(comment_data)
+            await DouyinAwemeComment.create(**comment_data.dict())
         else:
-            await DouyinAwemeComment.filter(comment_id=comment_id).update(**local_db_item)
+            comment_pydantic = pydantic_model_creator(DouyinAwemeComment, name='DouyinAwemeCommentUpdate',
+                                                      exclude=('id', 'add_ts'))
+            comment_data = comment_pydantic(**local_db_item)
+            comment_pydantic.validate(comment_data)
+            await DouyinAwemeComment.filter(comment_id=comment_id).update(**comment_data.dict())
+    else:
+        source_keywords = request_keyword_var.get()
+        pathlib.Path(f"data/dy").mkdir(parents=True, exist_ok=True)
+        with open(f"data/dy/comment_{source_keywords}.csv", mode='a+', encoding="utf-8-sig", newline="") as f:
+            writer = csv.writer(f)
+            if f.tell() == 0:
+                writer.writerow(local_db_item.keys())
+            writer.writerow(local_db_item.values())
